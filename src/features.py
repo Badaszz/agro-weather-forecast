@@ -6,11 +6,11 @@ def build_features(input_path: str = "data/raw_weather.csv",
                    output_path: str = "data/features.csv") -> pd.DataFrame:
 
     df = pd.read_csv(input_path, index_col="date", parse_dates=True)
-    print(f"📂 Loaded raw data: {df.shape}")
+    print(f"Loaded raw data: {df.shape}")
 
     # === 1. Handle Missing Values ===
     df = df.interpolate(method="time").ffill().bfill()
-    print("✅ Missing values handled")
+    print("Missing values handled")
 
     # === 2. Lag Features (previous days' rainfall) ===
     df["precip_lag_1"] = df["precipitation_sum"].shift(1)
@@ -43,7 +43,7 @@ def build_features(input_path: str = "data/raw_weather.csv",
 
     # === 6. Drop rows with NaN (from lags + last row with no target) ===
     df.dropna(inplace=True)
-    print(f"✅ Features engineered: {df.shape}")
+    print(f"Features engineered: {df.shape}")
 
     # === 7. Chronological Train / Val / Test Split ===
     n = len(df)
@@ -54,12 +54,12 @@ def build_features(input_path: str = "data/raw_weather.csv",
     val   = df.iloc[train_end:val_end]
     test  = df.iloc[val_end:]
 
-    print(f"📊 Split → Train: {len(train)} | Val: {len(val)} | Test: {len(test)}")
+    print(f"Split → Train: {len(train)} | Val: {len(val)} | Test: {len(test)}")
 
     # === 8. Save ===
     os.makedirs("data", exist_ok=True)
     df.to_csv(output_path)
-    print(f"💾 Saved features to {output_path}")
+    print(f"Saved features to {output_path}")
 
     return train, val, test
 
