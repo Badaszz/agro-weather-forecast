@@ -17,6 +17,27 @@ def get_connection():
     finally:
         conn.close()
 
+# === RETENTION CONFIG (days to keep) ===
+RETENTION = {
+    "predictions":        365,   # 1 year
+    "actuals":            365,   # 1 year
+    "monitoring_results": 180,   # 6 months
+}
+
+
+def cleanup_old_data():
+    """Drop records older than the retention window for each table."""
+    with get_connection() as conn:
+        for table, days in RETENTION.items():
+            date_col = "evaluated_on" if table == "monitoring_results" else \
+                       "actual_date"  if table == "actuals" else \
+                       "prediction_date"
+            cutoff = (date.today() - timedelta(days=days)).strftime("%Y-%m-%d")
+            cursor = conn.execute(f"""
+                DELETE FROM {table} WHERE {date_col} < ?
+            """, (cutoff,))
+            if cursor.rowcount > 0:
+                print(f"Dropped {cursor.rowcount} old rows from '{table}' (older than {days} days)")
 
 def init_db():
     """Create all tables if they don't exist."""
@@ -48,7 +69,8 @@ def init_db():
                 created_at      TEXT DEFAULT (datetime('now'))
             );
         """)
-    print("✅ Database initialised at", DB_PATH)
+    cleanup_old_data()
+    print("Database initialised at", DB_PATH)
 
 
 # === PREDICTIONS ===
@@ -67,7 +89,7 @@ def save_prediction(prediction_date: str,
                 model_version         = excluded.model_version,
                 created_at            = datetime('now')
         """, (prediction_date, predicted_rainfall_mm, based_on_data_up_to, model_version))
-    print(f"💾 Prediction saved → {prediction_date}: {predicted_rainfall_mm}mm")
+    print(f"Prediction saved → {prediction_date}: {predicted_rainfall_mm}mm")
 
 
 def get_predictions(days: int = 30) -> list:
@@ -100,7 +122,7 @@ def save_actual(actual_date: str, actual_rainfall: float):
                 actual_rainfall = excluded.actual_rainfall,
                 fetched_at      = datetime('now')
         """, (actual_date, actual_rainfall))
-    print(f"💾 Actual saved → {actual_date}: {actual_rainfall}mm")
+    print(f"Actual saved → {actual_date}: {actual_rainfall}mm")
 
 
 def get_actuals(days: int = 30) -> list:
@@ -132,7 +154,7 @@ def save_monitoring_result(evaluated_on: str,
                 drift_detected = excluded.drift_detected,
                 created_at     = datetime('now')
         """, (evaluated_on, mae, rmse, num_samples, int(drift_detected)))
-    print(f"💾 Monitoring result saved → {evaluated_on} | MAE: {mae} | Drift: {drift_detected}")
+    print(f"Monitoring result saved → {evaluated_on} | MAE: {mae} | Drift: {drift_detected}")
 
 
 def get_monitoring_results(days: int = 60) -> list:
@@ -146,7 +168,7 @@ def get_monitoring_results(days: int = 60) -> list:
     return [dict(r) for r in rows]
 
 
-# === JOINED VIEW (for NannyML + Streamlit) ===
+# === JOINED VIEW (for Monitoring + Streamlit) ===
 def get_predictions_with_actuals(days: int = 60) -> list:
     """Returns rows where both a prediction and actual exist — used for evaluation."""
     since = (date.today() - timedelta(days=days)).strftime("%Y-%m-%d")
