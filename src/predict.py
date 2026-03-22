@@ -3,8 +3,9 @@ import numpy as np
 import requests
 import joblib
 from datetime import date, timedelta
-from src.database import init_db, save_prediction, save_actual
-
+import time
+from src.database import (init_db, save_prediction, save_actual,
+                           get_predictions_missing_actuals)
 FEATURES = [
     "temperature_2m_max", "temperature_2m_min",
     "windspeed_10m_max", "et0_fao_evapotranspiration",
@@ -92,16 +93,16 @@ def predict_next_day_rainfall(latitude: float, longitude: float) -> dict:
         based_on_data_up_to=(date.today() - timedelta(days=1)).strftime("%Y-%m-%d"),
     )
 
-    # Fetch and store yesterday's actual (it's now available)
+    # Fetch and store yesterday's actual using retry logic
     yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
-    try:
-        yesterday_raw = fetch_recent_weather(latitude, longitude, days=3)
-        if yesterday in yesterday_raw.index.strftime("%Y-%m-%d").tolist():
-            actual_val = yesterday_raw.loc[yesterday_raw.index.strftime("%Y-%m-%d") == yesterday, "precipitation_sum"].values[0]
-            save_actual(yesterday, round(float(actual_val), 2))
-    except Exception as e:
-        print(f"⚠️ Could not fetch yesterday's actual: {e}")
+    actual_val = fetch_actual_for_date(yesterday, latitude, longitude)
+    if actual_val is not None:
+        save_actual(yesterday, actual_val)
 
+    # Backfill any other dates that previously failed
+    backfill_missing_actuals(latitude, longitude)
+    
+    
     return {
         "predicted_rainfall_mm": round(float(max(prediction, 0)), 2),
         "prediction_date": prediction_date,
@@ -164,3 +165,76 @@ def predict_for_date(target_date: str, latitude: float, longitude: float) -> dic
         "based_on_data_up_to": fetch_end,
         "model": "Ridge (α=100)",
     }
+
+def fetch_actual_for_date(
+    target_date: str,
+    latitude: float = LATITUDE,
+    longitude: float = LONGITUDE,
+    retries: int = 3,
+    backoff: float = 5.0,
+) -> float | None:
+    """
+    Fetch the real observed rainfall for a specific past date.
+    Retries up to `retries` times with exponential backoff on failure.
+    Returns the rainfall value or None if all attempts fail.
+    """
+    for attempt in range(1, retries + 1):
+        try:
+            url = "https://archive-api.open-meteo.com/v1/archive"
+            params = {
+                "latitude": latitude,
+                "longitude": longitude,
+                "start_date": target_date,
+                "end_date": target_date,
+                "daily": "precipitation_sum",
+                "timezone": "Africa/Lagos",
+            }
+            response = requests.get(url, params=params, timeout=10)
+
+            if response.status_code != 200:
+                raise Exception(f"API returned {response.status_code}")
+
+            value = response.json()["daily"]["precipitation_sum"][0]
+            if value is None:
+                raise Exception("API returned null rainfall value")
+
+            print(f"✅ Fetched actual for {target_date}: {value}mm")
+            return round(float(value), 2)
+
+        except Exception as e:
+            wait = backoff * (2 ** (attempt - 1))  # 5s, 10s, 20s
+            print(f"⚠️  Attempt {attempt}/{retries} failed for {target_date}: {e}")
+            if attempt < retries:
+                print(f"   Retrying in {wait:.0f}s...")
+                time.sleep(wait)
+            else:
+                print(f"❌ All {retries} attempts failed for {target_date}. Will retry next run.")
+    return None
+
+
+def backfill_missing_actuals(
+    latitude: float = LATITUDE,
+    longitude: float = LONGITUDE,
+):
+    """
+    Check all prediction dates that have no actual yet and try to fill them in.
+    Safe to call on every daily run — skips dates that already have actuals.
+    """
+    missing = get_predictions_missing_actuals()
+
+    if not missing:
+        print("No missing actuals to backfill.")
+        return
+
+    print(f"Backfilling {len(missing)} missing actual(s): {missing}")
+    filled, failed = 0, 0
+
+    for target_date in missing:
+        value = fetch_actual_for_date(target_date, latitude, longitude)
+        if value is not None:
+            save_actual(target_date, value)
+            filled += 1
+        else:
+            failed += 1
+
+    print(f"\nBackfill complete → Filled: {filled} | Still missing: {failed}")

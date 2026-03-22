@@ -135,6 +135,18 @@ def get_actuals(days: int = 30) -> list:
         """, (since,)).fetchall()
     return [dict(r) for r in rows]
 
+def get_predictions_missing_actuals() -> list:
+    """Return all prediction dates that have no matching actual yet."""
+    with get_connection() as conn:
+        rows = conn.execute("""
+            SELECT p.prediction_date
+            FROM predictions p
+            LEFT JOIN actuals a ON p.prediction_date = a.actual_date
+            WHERE a.actual_date IS NULL
+              AND p.prediction_date < date('now')
+        """).fetchall()
+    return [r["prediction_date"] for r in rows]
+
 
 # === MONITORING ===
 def save_monitoring_result(evaluated_on: str,
