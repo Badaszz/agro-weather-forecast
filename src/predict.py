@@ -6,6 +6,7 @@ from datetime import date, timedelta
 import time
 from src.database import (init_db, save_prediction, save_actual,
                            get_predictions_missing_actuals)
+
 FEATURES = [
     "temperature_2m_max", "temperature_2m_min",
     "windspeed_10m_max", "et0_fao_evapotranspiration",
