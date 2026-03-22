@@ -67,12 +67,12 @@ def log_season_metrics(y_true, y_pred, index):
 def save_scaler(scaler, path="data/scaler.pkl"):
     os.makedirs("data", exist_ok=True)
     joblib.dump(scaler, path)
-    print(f"💾 Scaler saved to {path}")
+    print(f"Scaler saved to {path}")
 
 
 # === MODEL 1: XGBOOST ===
 def train_xgboost(train, val, test, scaler):
-    print("\n🟢 Training XGBoost Regressor...")
+    print("\nTraining XGBoost Regressor...")
 
     X_train = scaler.transform(train[FEATURES])
     X_val   = scaler.transform(val[FEATURES])
@@ -119,12 +119,12 @@ def train_xgboost(train, val, test, scaler):
                 mlflow.sklearn.log_model(model, "xgb_model",
                                          registered_model_name="agro-rainfall-forecaster")
 
-    print(f"\n🏆 Best XGBoost → {best_params} | Val MAE: {best_val_mae}")
+    print(f"\nBest XGBoost → {best_params} | Val MAE: {best_val_mae}")
 
 
 # === MODEL 2: RANDOM FOREST ===
 def train_random_forest(train, val, test, scaler):
-    print("\n🟡 Training Random Forest Regressor...")
+    print("\nTraining Random Forest Regressor...")
 
     X_train = scaler.transform(train[FEATURES])
     X_val   = scaler.transform(val[FEATURES])
@@ -169,12 +169,12 @@ def train_random_forest(train, val, test, scaler):
                 mlflow.sklearn.log_model(model, "rf_model",
                                          registered_model_name="agro-rainfall-forecaster")
 
-    print(f"\n🏆 Best Random Forest → {best_params} | Val MAE: {best_val_mae}")
+    print(f"\nBest Random Forest → {best_params} | Val MAE: {best_val_mae}")
 
 
 # === MODEL 3: RIDGE (BEST FROM TUNING) ===
 def train_best_ridge(train, val, test, scaler):
-    print("\n🔵 Training Best Ridge (α=100) for comparison...")
+    print("\nTraining Best Ridge (α=100) for comparison...")
 
     X_train = scaler.transform(train[FEATURES])
     X_val   = scaler.transform(val[FEATURES])
@@ -203,7 +203,7 @@ def train_best_ridge(train, val, test, scaler):
         mlflow.sklearn.log_model(model, "ridge_model",
                                   registered_model_name="agro-rainfall-forecaster")
 
-        print(f"✅ Ridge α=100 → Val MAE: {val_metrics['MAE']} | R²: {val_metrics['R2']}")
+        print(f"Ridge α=100 → Val MAE: {val_metrics['MAE']} | R²: {val_metrics['R2']}")
 
 
 # === MAIN ===
