@@ -3,6 +3,7 @@ import numpy as np
 import requests
 import joblib
 from datetime import date, timedelta
+from src.database import init_db, save_prediction, save_actual
 
 FEATURES = [
     "temperature_2m_max", "temperature_2m_min",
@@ -82,6 +83,31 @@ def predict_next_day_rainfall(latitude: float, longitude: float) -> dict:
     latest_row = features_df[FEATURES].iloc[[-1]]
     scaled     = scaler.transform(latest_row)
     prediction = model.predict(scaled)[0]
+    
+    init_db()
+    prediction_date = date.today().strftime("%Y-%m-%d")
+    save_prediction(
+        prediction_date=prediction_date,
+        predicted_rainfall_mm=round(float(max(prediction, 0)), 2),
+        based_on_data_up_to=(date.today() - timedelta(days=1)).strftime("%Y-%m-%d"),
+    )
+
+    # Fetch and store yesterday's actual (it's now available)
+    yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+    try:
+        yesterday_raw = fetch_recent_weather(latitude, longitude, days=3)
+        if yesterday in yesterday_raw.index.strftime("%Y-%m-%d").tolist():
+            actual_val = yesterday_raw.loc[yesterday_raw.index.strftime("%Y-%m-%d") == yesterday, "precipitation_sum"].values[0]
+            save_actual(yesterday, round(float(actual_val), 2))
+    except Exception as e:
+        print(f"⚠️ Could not fetch yesterday's actual: {e}")
+
+    return {
+        "predicted_rainfall_mm": round(float(max(prediction, 0)), 2),
+        "prediction_date": prediction_date,
+        "based_on_data_up_to": (date.today() - timedelta(days=1)).strftime("%Y-%m-%d"),
+        "model": "Ridge (α=100)",
+    }
 
     return {
         "predicted_rainfall_mm": round(float(max(prediction, 0)), 2),  # no negative rainfall
