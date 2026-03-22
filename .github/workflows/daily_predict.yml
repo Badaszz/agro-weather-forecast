@@ -1,0 +1,43 @@
+name: Daily Prediction
+
+on:
+  schedule:
+    - cron: "0 5 * * *"  # 6am Lagos time (UTC+1) every day
+  workflow_dispatch:      # allows manual trigger from GitHub Actions tab
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Step 1 — Run daily prediction + backfill actuals
+        run: uv run python -m src.predict
+
+      - name: Step 2 — Run model monitoring
+        run: uv run python -m src.monitor
+
+      - name: Commit updated database and monitor log
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/agro_forecast.db
+          git add data/monitor_log.json
+          git diff --staged --quiet || git commit -m "chore: daily prediction run $(date +'%Y-%m-%d')"
+          git push

@@ -6,6 +6,8 @@ from datetime import date, timedelta
 import time
 from src.database import (init_db, save_prediction, save_actual,
                            get_predictions_missing_actuals)
+LATITUDE = 6.5244
+LONGITUDE = 3.3792
 
 FEATURES = [
     "temperature_2m_max", "temperature_2m_min",
@@ -75,7 +77,7 @@ def build_prediction_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def predict_next_day_rainfall(latitude: float, longitude: float) -> dict:
-    """Full inference pipeline — fetch, engineer, predict."""
+    """Full inference pipeline — fetch, engineer, predict and save to DB."""
     model  = joblib.load("data/best_model.pkl")
     scaler = joblib.load("data/scaler.pkl")
 
@@ -85,37 +87,23 @@ def predict_next_day_rainfall(latitude: float, longitude: float) -> dict:
     latest_row = features_df[FEATURES].iloc[[-1]]
     scaled     = scaler.transform(latest_row)
     prediction = model.predict(scaled)[0]
-    
-    init_db()
+
     prediction_date = date.today().strftime("%Y-%m-%d")
+    based_on        = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+    predicted_mm    = round(float(max(prediction, 0)), 2)
+
+    init_db()
     save_prediction(
         prediction_date=prediction_date,
-        predicted_rainfall_mm=round(float(max(prediction, 0)), 2),
-        based_on_data_up_to=(date.today() - timedelta(days=1)).strftime("%Y-%m-%d"),
+        predicted_rainfall_mm=predicted_mm,
+        based_on_data_up_to=based_on,
     )
 
-    # Fetch and store yesterday's actual using retry logic
-    yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
-    actual_val = fetch_actual_for_date(yesterday, latitude, longitude)
-    if actual_val is not None:
-        save_actual(yesterday, actual_val)
-
-    # Backfill any other dates that previously failed
-    backfill_missing_actuals(latitude, longitude)
-    
-    
     return {
-        "predicted_rainfall_mm": round(float(max(prediction, 0)), 2),
-        "prediction_date": prediction_date,
-        "based_on_data_up_to": (date.today() - timedelta(days=1)).strftime("%Y-%m-%d"),
-        "model": "Ridge (α=100)",
-    }
-
-    return {
-        "predicted_rainfall_mm": round(float(max(prediction, 0)), 2),  # no negative rainfall
-        "prediction_date": (date.today()).strftime("%Y-%m-%d"),
-        "based_on_data_up_to": (date.today() - timedelta(days=1)).strftime("%Y-%m-%d"),
-        "model": "Ridge (α=100)",
+        "predicted_rainfall_mm": predicted_mm,
+        "prediction_date":       prediction_date,
+        "based_on_data_up_to":   based_on,
+        "model":                 "Ridge (α=100)",
     }
     
 def predict_for_date(target_date: str, latitude: float, longitude: float) -> dict:
@@ -239,3 +227,30 @@ def backfill_missing_actuals(
             failed += 1
 
     print(f"\nBackfill complete → Filled: {filled} | Still missing: {failed}")
+    
+def run_daily_pipeline():
+    print("Running daily prediction pipeline...")
+    init_db()
+
+    # 1. Make today's prediction and save it
+    print("\nGenerating today's prediction...")
+    result = predict_next_day_rainfall(LATITUDE, LONGITUDE)
+    print(f"Predicted {result['predicted_rainfall_mm']}mm for {result['prediction_date']}")
+
+    # 2. Fetch actual for yesterday (that's when yesterday's prediction can be verified)
+    yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+    print(f"\nFetching actual rainfall for {yesterday}...")
+    actual_val = fetch_actual_for_date(yesterday, LATITUDE, LONGITUDE)
+    if actual_val is not None:
+        save_actual(yesterday, actual_val)
+
+    # 3. Backfill any other dates still missing actuals
+    print("\nChecking for other missing actuals...")
+    backfill_missing_actuals(LATITUDE, LONGITUDE)
+
+    print("\nDaily pipeline complete.")
+    return result
+
+
+if __name__ == "__main__":
+    run_daily_pipeline()

@@ -1,0 +1,53 @@
+name: Monthly Pipeline
+
+on:
+  schedule:
+    - cron: "0 5 1 * *"  # 6am Lagos time (UTC+1) on the 1st of every month
+  workflow_dispatch:      # allows manual trigger from GitHub Actions tab
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"  
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Step 1 — Ingest latest weather data
+        run: uv run python -m src.ingestion
+
+      - name: Step 2 — Data quality gate
+        run: uv run python -m src.quality
+        # Exit code 1 on failure — all subsequent steps are skipped automatically
+
+      - name: Step 3 — Feature engineering
+        run: uv run python -m src.features
+
+      - name: Step 4 — Retrain final model
+        run: uv run python -m src.train_final_model
+
+      - name: Commit updated artifacts
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/raw_weather.csv
+          git add data/features.csv
+          git add data/best_model.pkl
+          git add data/scaler.pkl
+          git add data/quality_results.json
+          git diff --staged --quiet || git commit -m "chore: monthly pipeline run $(date +'%Y-%m-%d')"
+          git push
