@@ -1,0 +1,140 @@
+import pandas as pd
+import numpy as np
+import requests
+import joblib
+from datetime import date, timedelta
+
+FEATURES = [
+    "temperature_2m_max", "temperature_2m_min",
+    "windspeed_10m_max", "et0_fao_evapotranspiration",
+    "precip_lag_1", "precip_lag_3", "precip_lag_7",
+    "precip_roll7_mean", "precip_roll7_std",
+    "precip_roll14_mean", "precip_roll14_std",
+    "day_of_year", "month", "week",
+    "is_dry_season", "is_peak_rain",
+    "is_wet_season", "is_aug_break",
+]
+
+def fetch_recent_weather(latitude: float, longitude: float, days: int = 21) -> pd.DataFrame:
+    """Fetch last `days` days of weather from Open-Meteo."""
+    end_date   = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+    start_date = (date.today() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+    url = "https://archive-api.open-meteo.com/v1/archive"
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "start_date": start_date,
+        "end_date": end_date,
+        "daily": ",".join([
+            "temperature_2m_max", "temperature_2m_min",
+            "precipitation_sum", "windspeed_10m_max",
+            "et0_fao_evapotranspiration"
+        ]),
+        "timezone": "Africa/Lagos"
+    }
+
+    response = requests.get(url, params=params)
+    if response.status_code != 200:
+        raise Exception(f"Weather API error: {response.status_code}")
+
+    daily = response.json()["daily"]
+    df = pd.DataFrame(daily)
+    df.rename(columns={"time": "date"}, inplace=True)
+    df["date"] = pd.to_datetime(df["date"])
+    df.set_index("date", inplace=True)
+    return df
+
+
+def build_prediction_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Engineer features from raw weather data."""
+    df = df.interpolate(method="time").ffill().bfill()
+
+    df["precip_lag_1"] = df["precipitation_sum"].shift(1)
+    df["precip_lag_3"] = df["precipitation_sum"].shift(3)
+    df["precip_lag_7"] = df["precipitation_sum"].shift(7)
+
+    df["precip_roll7_mean"]  = df["precipitation_sum"].rolling(7).mean()
+    df["precip_roll7_std"]   = df["precipitation_sum"].rolling(7).std()
+    df["precip_roll14_mean"] = df["precipitation_sum"].rolling(14).mean()
+    df["precip_roll14_std"]  = df["precipitation_sum"].rolling(14).std()
+
+    df["day_of_year"]   = df.index.dayofyear
+    df["month"]         = df.index.month
+    df["week"]          = df.index.isocalendar().week.astype(int)
+    df["is_dry_season"] = df["month"].isin([11, 12, 1, 2, 3]).astype(int)
+    df["is_peak_rain"]  = df["month"].isin([6, 9, 10]).astype(int)
+    df["is_wet_season"] = df["month"].isin([4, 5, 6, 7, 9, 10]).astype(int)
+    df["is_aug_break"]  = (df["month"] == 8).astype(int)
+
+    df.dropna(inplace=True)
+    return df
+
+
+def predict_next_day_rainfall(latitude: float, longitude: float) -> dict:
+    """Full inference pipeline — fetch, engineer, predict."""
+    model  = joblib.load("data/best_model.pkl")
+    scaler = joblib.load("data/scaler.pkl")
+
+    raw_df      = fetch_recent_weather(latitude, longitude)
+    features_df = build_prediction_features(raw_df)
+
+    latest_row = features_df[FEATURES].iloc[[-1]]
+    scaled     = scaler.transform(latest_row)
+    prediction = model.predict(scaled)[0]
+
+    return {
+        "predicted_rainfall_mm": round(float(max(prediction, 0)), 2),  # no negative rainfall
+        "prediction_date": (date.today()).strftime("%Y-%m-%d"),
+        "based_on_data_up_to": (date.today() - timedelta(days=1)).strftime("%Y-%m-%d"),
+        "model": "Ridge (α=100)",
+    }
+    
+def predict_for_date(target_date: str, latitude: float, longitude: float) -> dict:
+    """Predict rainfall for a specific date using weather data leading up to it."""
+    model  = joblib.load("data/best_model.pkl")
+    scaler = joblib.load("data/scaler.pkl")
+
+    target = pd.to_datetime(target_date)
+    fetch_end   = (target - timedelta(days=1)).strftime("%Y-%m-%d")
+    fetch_start = (target - timedelta(days=21)).strftime("%Y-%m-%d")
+
+    url = "https://archive-api.open-meteo.com/v1/archive"
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "start_date": fetch_start,
+        "end_date": fetch_end,
+        "daily": ",".join([
+            "temperature_2m_max", "temperature_2m_min",
+            "precipitation_sum", "windspeed_10m_max",
+            "et0_fao_evapotranspiration"
+        ]),
+        "timezone": "Africa/Lagos"
+    }
+
+    response = requests.get(url, params=params)
+    if response.status_code != 200:
+        raise Exception(f"Weather API error: {response.status_code}")
+
+    daily = response.json()["daily"]
+    df = pd.DataFrame(daily)
+    df.rename(columns={"time": "date"}, inplace=True)
+    df["date"] = pd.to_datetime(df["date"])
+    df.set_index("date", inplace=True)
+
+    features_df = build_prediction_features(df)
+
+    if features_df.empty:
+        raise Exception(f"Not enough data to build features for {target_date}")
+
+    latest_row = features_df[FEATURES].iloc[[-1]]
+    scaled     = scaler.transform(latest_row)
+    prediction = model.predict(scaled)[0]
+
+    return {
+        "predicted_rainfall_mm": round(float(max(prediction, 0)), 2),
+        "prediction_date": target_date,
+        "based_on_data_up_to": fetch_end,
+        "model": "Ridge (α=100)",
+    }
