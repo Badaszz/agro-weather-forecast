@@ -3,7 +3,8 @@ __pycache__/
 *.py[codz]
 *$py.class
 
-data/
+data/features.csv
+data/raw_weather.csv
 mlruns/
 .venv/
 __pycache__/
