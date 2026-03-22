@@ -1,6 +1,10 @@
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Resolve project root regardless of where the app is launched from
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+os.chdir(ROOT)  # ensures all relative paths like "data/..." resolve correctly
 
 import streamlit as st
 import pandas as pd
