@@ -41,3 +41,6 @@ jobs:
           git add data/monitor_log.json
           git diff --staged --quiet || git commit -m "chore: daily prediction run $(date +'%Y-%m-%d')"
           git push
+
+      - name: Keep Streamlit app awake # prevent streamlit app from sleeping by pinging it once a day
+        run: curl -s -o /dev/null https://badasz-agro-weather-forecast.streamlit.app/
