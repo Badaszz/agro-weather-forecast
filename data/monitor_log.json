@@ -23496,5 +23496,147 @@
         "rolling_mae_7d": 4.747142857142856
       }
     ]
+  },
+  {
+    "evaluated_on": "2026-09-10",
+    "num_samples": 30,
+    "window_days": 30,
+    "metrics": {
+      "mae": 4.0387,
+      "rmse": 5.1854
+    },
+    "drift": {
+      "drift_detected": true,
+      "baseline_mae": 1.8536,
+      "current_mae": 4.0387,
+      "degradation_pct": 117.88,
+      "threshold_pct": 30.0
+    },
+    "season_metrics": {
+      "peak_rain": {
+        "mae": 4.7989,
+        "rmse": 5.1542
+      },
+      "wet_season": null,
+      "aug_break": {
+        "mae": 3.7129,
+        "rmse": 5.1986
+      },
+      "dry_season": null
+    },
+    "rolling_mae_7d": [
+      {
+        "prediction_date": "2026-08-13",
+        "rolling_mae_7d": 3.0700000000000003
+      },
+      {
+        "prediction_date": "2026-08-14",
+        "rolling_mae_7d": 3.0549999999999997
+      },
+      {
+        "prediction_date": "2026-08-15",
+        "rolling_mae_7d": 2.9939999999999998
+      },
+      {
+        "prediction_date": "2026-08-16",
+        "rolling_mae_7d": 2.5
+      },
+      {
+        "prediction_date": "2026-08-17",
+        "rolling_mae_7d": 2.532857142857143
+      },
+      {
+        "prediction_date": "2026-08-18",
+        "rolling_mae_7d": 2.335714285714286
+      },
+      {
+        "prediction_date": "2026-08-19",
+        "rolling_mae_7d": 2.07
+      },
+      {
+        "prediction_date": "2026-08-20",
+        "rolling_mae_7d": 2.1671428571428573
+      },
+      {
+        "prediction_date": "2026-08-21",
+        "rolling_mae_7d": 1.7714285714285711
+      },
+      {
+        "prediction_date": "2026-08-22",
+        "rolling_mae_7d": 2.1928571428571426
+      },
+      {
+        "prediction_date": "2026-08-23",
+        "rolling_mae_7d": 2.5714285714285716
+      },
+      {
+        "prediction_date": "2026-08-24",
+        "rolling_mae_7d": 2.267142857142857
+      },
+      {
+        "prediction_date": "2026-08-25",
+        "rolling_mae_7d": 2.4814285714285718
+      },
+      {
+        "prediction_date": "2026-08-26",
+        "rolling_mae_7d": 2.4128571428571424
+      },
+      {
+        "prediction_date": "2026-08-27",
+        "rolling_mae_7d": 2.5785714285714283
+      },
+      {
+        "prediction_date": "2026-08-28",
+        "rolling_mae_7d": 5.105714285714285
+      },
+      {
+        "prediction_date": "2026-08-29",
+        "rolling_mae_7d": 5.164285714285714
+      },
+      {
+        "prediction_date": "2026-08-30",
+        "rolling_mae_7d": 5.797142857142857
+      },
+      {
+        "prediction_date": "2026-08-31",
+        "rolling_mae_7d": 6.338571428571429
+      },
+      {
+        "prediction_date": "2026-09-01",
+        "rolling_mae_7d": 6.515714285714286
+      },
+      {
+        "prediction_date": "2026-09-02",
+        "rolling_mae_7d": 6.7299999999999995
+      },
+      {
+        "prediction_date": "2026-09-03",
+        "rolling_mae_7d": 7.17
+      },
+      {
+        "prediction_date": "2026-09-04",
+        "rolling_mae_7d": 5.215714285714285
+      },
+      {
+        "prediction_date": "2026-09-05",
+        "rolling_mae_7d": 4.5685714285714285
+      },
+      {
+        "prediction_date": "2026-09-06",
+        "rolling_mae_7d": 4.112857142857143
+      },
+      {
+        "prediction_date": "2026-09-07",
+        "rolling_mae_7d": 4.635714285714285
+      },
+      {
+        "prediction_date": "2026-09-08",
+        "rolling_mae_7d": 4.747142857142856
+      },
+      {
+        "prediction_date": "2026-09-09",
+        "rolling_mae_7d": 5.098571428571428
+      }
+    ]
   }
 ]
